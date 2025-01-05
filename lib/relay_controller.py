@@ -40,5 +40,10 @@ class RelayController:
       else:
          self.on()
 
+   def set_state(self, is_on:bool):
+      """Set the relay state."""
+      self.is_on = is_on
+      self.IN.value(self.active_state if is_on else not self.active_state)
+
 
 relay = RelayController(in_pin=RELAY_IN_PIN, active_low=False)

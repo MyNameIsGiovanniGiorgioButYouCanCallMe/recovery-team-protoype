@@ -7,6 +7,8 @@ from lib.led_controller import LedController
 from lib.relay_controller import RelayController
 from lib.button_handler import ButtonHandler
 
+
+
 class WebServer:
    def __init__(self, ssid="ssid", password="test-123"):
       self.ssid = ssid
@@ -14,21 +16,19 @@ class WebServer:
       self.ip = None
       self.port = 80
 
-      self.relay        = RelayController(RELAY_IN_PIN)
-      self.button       = ButtonHandler(BUTTON_PIN)
-      self.status_led   = LedController(LED_PIN)
+
+      self.relay = RelayController(in_pin=RELAY_IN_PIN, active_low=False)
+      self.status_led = LedController(LED_PIN)
+      self.button = ButtonHandler(BUTTON_PIN)
 
       self.is_heating_on = False
       self.is_button_on = False
       self.is_led_on = False
 
       self.is_server_on = False
-      self.socket = None
+
       self.is_toggled = False
-
-      # self.has_been_pressed = False  # New attribute
-      # self.press_reset_timer = Timer(-1)  # Timer for resetting press state
-
+      # self.button_handler = ButtonHandler(pin=5)  # Physical button on pin 5
 
    def start_access_point(self):
       sta_if = network.WLAN(network.STA_IF)
@@ -46,20 +46,18 @@ class WebServer:
       print(f"Access Point created. Connect to SSID: {self.ssid} with password: {self.password}")
       print(f"Access the web server at http://{self.ip}:{self.port}")
 
-
-
    def start_server(self):
       # Set up the socket
       addr = socket.getaddrinfo(self.ip, 80)[0][-1]
-      self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      self.socket.bind(addr)
-      self.socket.listen(5)
+      sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      sock.bind(addr)
+      sock.listen(5)
       self.is_server_on = True
       print("Web server running. Waiting for connections...")
 
       try:
          while True:
-            client, addr = self.socket.accept()
+            client, addr = sock.accept()
             print("Client connected from", addr)
 
             # Read HTTP request
@@ -82,85 +80,53 @@ class WebServer:
             print("Request:", request)
 
             # Handle requests
-            if "GET /button" in decoded_request:
+
+
+            if "GET /toggle" in decoded_request:
                self.is_button_on = not self.is_button_on
                print("Toggle button pressed. New state:", self.is_button_on)
-               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on}
-               send_response(client, response=response)
-
-
-               #* ACTION:
-               # self.button.button_presses += 1
-               continue
-
 
             if "GET /heating" in decoded_request:
                self.is_heating_on = not self.is_heating_on
                print("Heating button pressed. New state:", self.is_heating_on)
-               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on}
-               send_response(client, response=response)
-
-               #* ACTION:
-               self.relay.set_state(self.is_heating_on)
-               # print(f"Relay state: {self.relay.is_on}")
-               continue
-
 
             if "GET /led" in decoded_request:
                self.is_led_on = not self.is_led_on
-               print("LED button pressed. New state:", self.is_led_on)
-               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on}
-               send_response(client, response=response)
-               #* ACTION:
                self.status_led.set_state(self.is_led_on)
+               print("LED button pressed. New state:", self.is_led_on)
 
-               continue
-
-
-            # response = {
-            #       "button_state": self.is_button_on,
-            #       "heating_state": self.is_heating_on,
-            #       "led_state": self.is_led_on
-            #    }
-            # client.send("HTTP/1.1 200 OK\r\n")
-            # client.send("Content-Type: application/json\r\n")
-            # client.send("\r\n")
-            # client.sendall(json.dumps(response).encode('utf-8'))
-            # client.close()
+            response = {
+               "button_state": self.is_button_on,
+               "heating_state": self.is_heating_on,
+               "led_state": self.is_led_on
+            }
 
 
-            #* Check for exit command
             if "exit" in decoded_request:
                print("Exit command received. Shutting down the server.")
                break
-            if not self.is_server_on:
-               print("Server is off.")
-               break
 
-            # Create an HTTP response
+            # Check if the physical button was pressed and toggle
+            if self.button_handler.has_been_pressed():
+                self.is_button_on = not self.is_button_on
+                print("Physical button pressed. New state:", self.is_button_on)
+                response["button_state"] = self.is_button_on
+
+            # Return response to client as JSON
+
+            client.send("HTTP/1.1 200 OK\r\n")
+            client.send("Content-Type: application/json\r\n")
+            client.send("\r\n")
+            client.sendall(str(response).encode())
+            client.close()
+
+
             html = self.generate_html(is_button_on=self.is_button_on, is_heating_on=self.is_heating_on, is_led_on=self.is_led_on)
             client.send("HTTP/1.1 200 OK\r\n")
             client.send("Content-Type: text/html\r\n")
             client.send("\r\n")
             client.sendall(html)
             client.close()
-
-
-            # Check for Button pressess
-            if self.button.has_been_pressed():
-               client, addr = self.socket.accept()
-               self.is_button_on = not self.is_button_on
-               print(f"Button has been pressed {self.button.get_button_presses()} times.")
-               print("Button has been pressed. New state:", self.is_button_on)
-               html = self.generate_html(is_button_on=self.is_button_on, is_heating_on=self.is_heating_on, is_led_on=self.is_led_on)
-               client.send("HTTP/1.1 200 OK\r\n")
-               client.send("Content-Type: text/html\r\n")
-               client.send("\r\n")
-               client.sendall(html)
-               client.close()
-
-
-
 
 
       except KeyboardInterrupt:
@@ -172,11 +138,7 @@ class WebServer:
 
       finally:
          print("Shutting down the server.")
-         if self.socket:
-            self.socket.close()
-
-
-
+         sock.close()
 
    @staticmethod
    def generate_html(is_button_on=False, is_heating_on=False, is_led_on=False):
@@ -187,9 +149,6 @@ class WebServer:
       button_color = "green" if is_button_on else "red"
       heating_color = "green" if is_heating_on else "red"
       led_color = "green" if is_led_on else "red"
-
-      # color = {"ON": "green", "OFF": "red"}
-
 
       return f"""
       <!DOCTYPE html>
@@ -203,7 +162,7 @@ class WebServer:
          </style>
       </head>
       <body>
-         <h1>Physio Ball Controll Panel</h1>
+         <h1>Physio Ball Control Panel</h1>
          <p>You are connected to the device's private network.</p>
 
          <div>
@@ -220,7 +179,20 @@ class WebServer:
             <p class="status">LED State: <strong id="led-state">{led_state}</strong></p>
             <button id="led-btn" style="background-color: {led_color}; color: white;" onclick="sendRequest('led')">Toggle LED</button>
          </div>
+
          <script>
+           // Update the button colors and states dynamically when the page loads
+           window.onload = function() {{
+               updateButtonState();
+           }};
+
+           function updateButtonState() {{
+               // Ensure initial state is reflected in the button colors
+               let buttonState = document.getElementById('button-state').textContent;
+               let buttonColor = buttonState === 'ON' ? 'red' : 'green';
+               document.getElementById('button-btn').style.backgroundColor = buttonColor;
+           }}
+
            function sendRequest(action) {{
                fetch('/' + action)
                    .then(response => response.json())
@@ -244,21 +216,8 @@ class WebServer:
       </html>
       """.encode('utf-8')
 
-def send_response(client, response):
-   # response = {
-   #             "button_state": self.is_button_on,
-   #             "heating_state": self.is_heating_on,
-   #             "led_state": self.is_led_on
-   #          }
-   client.send("HTTP/1.1 200 OK\r\n")
-   client.send("Content-Type: application/json\r\n")
-   client.send("\r\n")
-   client.sendall(json.dumps(response).encode('utf-8'))
-   client.close()
-
 def run():
    led = Pin(LED_PIN, Pin.OUT)
-
 
    # Configure the AP with an SSID and password
    ssid = WIFI_SSID

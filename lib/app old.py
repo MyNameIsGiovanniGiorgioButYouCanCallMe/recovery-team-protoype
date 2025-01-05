@@ -23,12 +23,10 @@ class WebServer:
       self.is_led_on = False
 
       self.is_server_on = False
-      self.socket = None
       self.is_toggled = False
 
       # self.has_been_pressed = False  # New attribute
       # self.press_reset_timer = Timer(-1)  # Timer for resetting press state
-
 
    def start_access_point(self):
       sta_if = network.WLAN(network.STA_IF)
@@ -51,15 +49,14 @@ class WebServer:
    def start_server(self):
       # Set up the socket
       addr = socket.getaddrinfo(self.ip, 80)[0][-1]
-      self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-      self.socket.bind(addr)
-      self.socket.listen(5)
+      sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      sock.bind(addr)
+      sock.listen(5)
       self.is_server_on = True
       print("Web server running. Waiting for connections...")
-
       try:
          while True:
-            client, addr = self.socket.accept()
+            client, addr = sock.accept()
             print("Client connected from", addr)
 
             # Read HTTP request
@@ -84,49 +81,67 @@ class WebServer:
             # Handle requests
             if "GET /button" in decoded_request:
                self.is_button_on = not self.is_button_on
+               # self.is_button_on.set_state(self.is_toggled)
+               response = {
+                  "button_state": self.is_button_on,
+                  "heating_state": self.is_heating_on,
+                  "led_state": self.is_led_on
+               }
+               client.send("HTTP/1.1 200 OK\r\n")
+               client.send("Content-Type: application/json\r\n")
+               client.send("\r\n")
+               client.sendall(json.dumps(response).encode('utf-8'))
+               client.close()
                print("Toggle button pressed. New state:", self.is_button_on)
-               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on}
-               send_response(client, response=response)
-
 
                #* ACTION:
-               # self.button.button_presses += 1
-               continue
+               self.button.button_presses += 1
+               # self.button.button_handler()
 
+               # if self.button.has_been_pressed():
+               #    self.is_button_on = not self.is_button_on
+               #    print(f"Button has been pressed {self.button.get_button_presses()} times.")
+
+               #    print("Toggle button pressed. New state:", self.is_button_on)
+               continue
 
             if "GET /heating" in decoded_request:
                self.is_heating_on = not self.is_heating_on
+               response = {
+                  "button_state": self.is_button_on,
+                  "heating_state": self.is_heating_on,
+                  "led_state": self.is_led_on
+               }
+               client.send("HTTP/1.1 200 OK\r\n")
+               client.send("Content-Type: application/json\r\n")
+               client.send("\r\n")
+               client.sendall(json.dumps(response).encode('utf-8'))
+               client.close()
                print("Heating button pressed. New state:", self.is_heating_on)
-               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on}
-               send_response(client, response=response)
 
                #* ACTION:
                self.relay.set_state(self.is_heating_on)
                # print(f"Relay state: {self.relay.is_on}")
                continue
 
-
             if "GET /led" in decoded_request:
                self.is_led_on = not self.is_led_on
+               response = {
+                  "button_state": self.is_button_on,
+                  "heating_state": self.is_heating_on,
+                  "led_state": self.is_led_on
+               }
+               client.send("HTTP/1.1 200 OK\r\n")
+               client.send("Content-Type: application/json\r\n")
+               client.send("\r\n")
+               client.sendall(json.dumps(response).encode('utf-8'))
+               client.close()
                print("LED button pressed. New state:", self.is_led_on)
-               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on}
-               send_response(client, response=response)
+
                #* ACTION:
                self.status_led.set_state(self.is_led_on)
 
                continue
-
-
-            # response = {
-            #       "button_state": self.is_button_on,
-            #       "heating_state": self.is_heating_on,
-            #       "led_state": self.is_led_on
-            #    }
-            # client.send("HTTP/1.1 200 OK\r\n")
-            # client.send("Content-Type: application/json\r\n")
-            # client.send("\r\n")
-            # client.sendall(json.dumps(response).encode('utf-8'))
-            # client.close()
 
 
             #* Check for exit command
@@ -148,7 +163,6 @@ class WebServer:
 
             # Check for Button pressess
             if self.button.has_been_pressed():
-               client, addr = self.socket.accept()
                self.is_button_on = not self.is_button_on
                print(f"Button has been pressed {self.button.get_button_presses()} times.")
                print("Button has been pressed. New state:", self.is_button_on)
@@ -172,10 +186,7 @@ class WebServer:
 
       finally:
          print("Shutting down the server.")
-         if self.socket:
-            self.socket.close()
-
-
+         sock.close()
 
 
    @staticmethod
@@ -244,17 +255,6 @@ class WebServer:
       </html>
       """.encode('utf-8')
 
-def send_response(client, response):
-   # response = {
-   #             "button_state": self.is_button_on,
-   #             "heating_state": self.is_heating_on,
-   #             "led_state": self.is_led_on
-   #          }
-   client.send("HTTP/1.1 200 OK\r\n")
-   client.send("Content-Type: application/json\r\n")
-   client.send("\r\n")
-   client.sendall(json.dumps(response).encode('utf-8'))
-   client.close()
 
 def run():
    led = Pin(LED_PIN, Pin.OUT)
