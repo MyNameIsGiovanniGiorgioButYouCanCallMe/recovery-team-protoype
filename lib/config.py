@@ -4,8 +4,8 @@ import os
 # Wi-Fi credentials from .env file
 # load_dotenv()
 
-WIFI_SSID = "PhysioBall"
-WIFI_PASSWORD = "The Recovery Team"
+WIFI_SSID = "TheraBall"
+WIFI_PASSWORD = "The Recovery Team :)"
 
 
 # Pin definitions

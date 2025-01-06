@@ -195,7 +195,7 @@ class WebServer:
       <!DOCTYPE html>
       <html>
       <head>
-         <title>MicroPython Web Server</title>
+         <title>TheraBall</title>
          <style>
                body {{ font-family: Arial, sans-serif; text-align: center; padding: 20px; }}
                button {{ padding: 15px; margin: 10px; font-size: 16px; }}
@@ -203,7 +203,7 @@ class WebServer:
          </style>
       </head>
       <body>
-         <h1>Physio Ball Controll Panel</h1>
+         <h1>TheraBall Controll Panel</h1>
          <p>You are connected to the device's private network.</p>
 
          <div>
