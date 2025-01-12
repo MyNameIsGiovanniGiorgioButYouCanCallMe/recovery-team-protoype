@@ -1,10 +1,10 @@
 from machine import Pin
-from lib.config import RELAY_IN_PIN
+# from lib.config import RELAY_IN_PIN
 
 from machine import Pin
 
 class RelayController:
-   def __init__(self, in_pin:int, active_low:bool= True):
+   def __init__(self, in_pin:int, active_low:bool):
       # Initialize the pin as an output
       self.IN  = Pin(in_pin, Pin.OUT)
 
@@ -18,16 +18,29 @@ class RelayController:
       # Initially turn off the relay
       self.off()
 
-   def on(self):
+   def off(self):
       """Turn the relay on by setting the pin to the active state."""
-      self.IN.init(Pin.OUT)  # Disable pin by setting it as input (high impedance state)
-      self.IN.value(self.active_state)
+      if self.active_state == 0:
+         self.IN.init(Pin.IN)
+      else:
+         # Turn it on (power up)
+         self.IN.init(Pin.OUT)
+         self.IN.value(self.active_state)
+
       self.times_toggled += 1
       self.is_on = True
 
-   def off(self):
+   def on(self):
       """Turn the relay off by disabling the pin (set as input)."""
-      self.IN.init(Pin.IN)  # Disable pin by setting it as input (high impedance state)
+      if self.active_state == 0:
+         self.IN.init(Pin.OUT)
+         self.IN.value(self.active_state)
+      else:
+         # Turn it off (power down)
+         self.IN.init(Pin.IN)  # Disable pin by setting it as input (high impedance state)
+         # self.IN.value(not self.active_state) # optional
+
+
       self.times_toggled += 1
       self.is_on = False
 
@@ -46,4 +59,4 @@ class RelayController:
       elif not is_on:
          self.off()
 
-relay = RelayController(in_pin=RELAY_IN_PIN, active_low=True)
+# relay = RelayController(in_pin=RELAY_IN_PIN, active_low=True)

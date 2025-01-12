@@ -17,3 +17,6 @@ SPEAKER_PIN = 15
 RELAY_VCC_PIN = '5V'
 RELAY_GND_PIN = 'GND'
 RELAY_IN_PIN = 5
+
+# Vibration Motor Pin definitions
+VIBRATION_PIN = 4

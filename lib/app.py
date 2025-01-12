@@ -2,10 +2,11 @@ import network
 import socket
 import json
 from machine import Pin, Timer
-from lib.config import WIFI_SSID, WIFI_PASSWORD, LED_PIN, BUTTON_PIN, RELAY_IN_PIN
+from lib.config import WIFI_SSID, WIFI_PASSWORD, LED_PIN, BUTTON_PIN, RELAY_IN_PIN, VIBRATION_PIN
 from lib.led_controller import LedController
 from lib.relay_controller import RelayController
 from lib.button_handler import ButtonHandler
+from lib.vibration_controller import VibrationController
 
 class WebServer:
    def __init__(self, ssid="ssid", password="test-123"):
@@ -14,13 +15,19 @@ class WebServer:
       self.ip = None
       self.port = 80
 
-      self.relay        = RelayController(RELAY_IN_PIN)
+      # Components:
+      self.relay        = RelayController(RELAY_IN_PIN, active_low=True)
       self.button       = ButtonHandler(BUTTON_PIN)
       self.status_led   = LedController(LED_PIN)
+      self.vibration    = VibrationController(VIBRATION_PIN)
+
 
       self.is_heating_on = False
       self.is_button_on = False
       self.is_led_on = False
+      self.is_vibrating = False
+
+
 
       self.is_server_on = False
       self.socket = None
@@ -85,7 +92,7 @@ class WebServer:
             if "GET /button" in decoded_request:
                self.is_button_on = not self.is_button_on
                print("Toggle button pressed. New state:", self.is_button_on)
-               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on}
+               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on, "vibration_state": self.is_vibrating}
                send_response(client, response=response)
 
 
@@ -97,7 +104,7 @@ class WebServer:
             if "GET /heating" in decoded_request:
                self.is_heating_on = not self.is_heating_on
                print("Heating button pressed. New state:", self.is_heating_on)
-               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on}
+               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on, "vibration_state": self.is_vibrating}
                send_response(client, response=response)
 
                #* ACTION:
@@ -105,11 +112,22 @@ class WebServer:
                # print(f"Relay state: {self.relay.is_on}")
                continue
 
+            if "GET /vibration" in decoded_request:
+               self.is_vibrating = not self.is_vibrating
+               print("Vibration button pressed. New state:", self.is_vibrating)
+               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on, "vibration_state": self.is_vibrating}
+               send_response(client, response=response)
+
+               #* ACTION:
+               self.vibration.set_state(self.is_vibrating)
+               # print(f"Relay state: {self.relay.is_on}")
+               continue
+
 
             if "GET /led" in decoded_request:
                self.is_led_on = not self.is_led_on
                print("LED button pressed. New state:", self.is_led_on)
-               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on}
+               response = {"button_state": self.is_button_on, "heating_state": self.is_heating_on, "led_state": self.is_led_on, "vibration_state": self.is_vibrating}
                send_response(client, response=response)
                #* ACTION:
                self.status_led.set_state(self.is_led_on)
@@ -184,9 +202,12 @@ class WebServer:
       button_state = "ON" if is_button_on else "OFF"
       heating_state = "ON" if is_heating_on else "OFF"
       led_state = "ON" if is_led_on else "OFF"
+      vibration_state = "ON" if is_led_on else "OFF"
+
       button_color = "green" if is_button_on else "red"
       heating_color = "green" if is_heating_on else "red"
       led_color = "green" if is_led_on else "red"
+      vibration_color = "green" if is_led_on else "red"
 
       # color = {"ON": "green", "OFF": "red"}
 
@@ -220,6 +241,10 @@ class WebServer:
             <p class="status">LED State: <strong id="led-state">{led_state}</strong></p>
             <button id="led-btn" style="background-color: {led_color}; color: white;" onclick="sendRequest('led')">Toggle LED</button>
          </div>
+         <div>
+            <p class="status">Vibration Motor State: <strong id="vibration-state">{vibration_state}</strong></p>
+            <button id="vibration-btn" style="background-color: {vibration_color}; color: white;" onclick="sendRequest('vibration')">Toggle Vibration Motor</button>
+         </div>
          <script>
            function sendRequest(action) {{
                fetch('/' + action)
@@ -235,6 +260,9 @@ class WebServer:
                        }} else if (action === 'led') {{
                            document.getElementById('led-state').textContent = data.led_state ? 'ON' : 'OFF';
                            document.getElementById('led-btn').style.backgroundColor = data.led_state ? 'red' : 'green';
+                       }} else if (action === 'vibration') {{
+                           document.getElementById('vibration-state').textContent = data.vibration_state ? 'ON' : 'OFF';
+                           document.getElementById('vibration-btn').style.backgroundColor = data.vibration_state ? 'red' : 'green';
                        }}
                    }})
                    .catch(error => console.error('Error:', error));
